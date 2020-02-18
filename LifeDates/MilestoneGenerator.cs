@@ -14,8 +14,11 @@ namespace LifeDates
                 Person person = people[x];
                 ret.AddRange(GenerateIndividualMilestones(person, yearsToSearch, futureOnly));
 
-                for(int y=x+1; y<people.Count; y++)
+                for(int y=0; y<people.Count; y++)
                 {
+                    if (x == y)
+                        continue;
+
                     Person person2 = people[y];
                     ret.AddRange(GenerateComparisonMilestones(person, person2, yearsToSearch, futureOnly));
                 }
@@ -73,7 +76,7 @@ namespace LifeDates
                 new AgeMilestoneDefinitions
                 {
                     Unit = "month",
-                    SpecificMilestones = new List<int>{},
+                    SpecificMilestones = new List<int>(),
                     RepeatingMilestone = 50
                 }
             };
@@ -104,7 +107,7 @@ namespace LifeDates
             DateTime birth = ResetTime(person.BirthDate);
 
             //"Pi day"
-            CheckAndAddMilestone(ret, new Milestone(birth.AddDays(Math.PI * Constants.DaysPerYear), person.Name, "Pi Years"), yearsToSearch, futureOnly);
+            CheckAndAddMilestone(ret, new Milestone(birth.AddDays(Math.PI * Constants.DaysPerYear), person.Name, "Pi years old"), yearsToSearch, futureOnly);
 
             double maxAge = (DateTime.Now - person.BirthDate).TotalDays / Constants.DaysPerYear + yearsToSearch;
 
@@ -114,7 +117,7 @@ namespace LifeDates
                 {
                     if (definition.YearsForInterval(interval) < maxAge)
                     {
-                        CheckAndAddMilestone(ret, new Milestone(definition.GenerateNewDate(birth, interval), person.Name, $"{interval} {definition.Unit}s"), yearsToSearch, futureOnly);
+                        CheckAndAddMilestone(ret, new Milestone(definition.GenerateNewDate(birth, interval), person.Name, $"{PrintableNumber(interval)} {definition.Unit}s old"), yearsToSearch, futureOnly);
                     }
                 }
 
@@ -122,7 +125,7 @@ namespace LifeDates
                 {
                     if (definition.YearsForInterval(interval) < maxAge)
                     {
-                        CheckAndAddMilestone(ret, new Milestone(definition.GenerateNewDate(birth, interval), person.Name, $"{interval} {definition.Unit}s"), yearsToSearch, futureOnly);
+                        CheckAndAddMilestone(ret, new Milestone(definition.GenerateNewDate(birth, interval), person.Name, $"{PrintableNumber(interval)} {definition.Unit}s old"), yearsToSearch, futureOnly);
                     }
                 }
 
@@ -130,7 +133,7 @@ namespace LifeDates
                 {
                     int interval = definition.RepeatingMilestone * i;
                     DateTime date = definition.GenerateNewDate(birth, interval);
-                    CheckAndAddMilestone(ret, new Milestone(date, person.Name, $"{interval} {definition.Unit}s"), yearsToSearch, futureOnly);
+                    CheckAndAddMilestone(ret, new Milestone(date, person.Name, $"{PrintableNumber(interval)} {definition.Unit}s old"), yearsToSearch, futureOnly);
 
                     if ((date - DateTime.Now).TotalDays / Constants.DaysPerYear > yearsToSearch)
                     {
@@ -144,29 +147,54 @@ namespace LifeDates
 
         public static List<Milestone> GenerateComparisonMilestones(Person person1, Person person2, int yearsToSearch, bool futureOnly)
         {
-            int[] mAgeFractions = {2, 3, 4, 5, 10, 20, 25, 50, 100, 200, 300, 400, 500, 1000};
+            int maxRatio = 10;
+            List<int> denominators = new List<int>() {2, 3, 4, 5, 8, 10};
             List<Milestone> ret = new List<Milestone>();
 
-            //Calculate "comparison dates"
-            long birth1Ticks = ResetTime(person1.BirthDate).Ticks;
-            long birth2Ticks = ResetTime(person2.BirthDate).Ticks;
+            DateTime now = DateTime.Now;
 
-            long difference = birth1Ticks - birth2Ticks;
-            if (difference > 0)
+            DateTime birth1 = ResetTime(person1.BirthDate);
+            DateTime birth2 = ResetTime(person2.BirthDate);
+
+            TimeSpan age1 = now - birth1;
+            TimeSpan age2 = now - birth2;
+
+            if (age1 == age2)
             {
-                foreach (int fraction in mAgeFractions)
-                {
-                    CheckAndAddMilestone(ret, new Milestone(person1.BirthDate.AddTicks(difference / (fraction - 1)), person1.Name, $"1/{fraction} {person2.Name}'s age"), yearsToSearch, futureOnly);
-                }
-                    
+                return ret;
             }
-            else if (difference < 0)
+
+            if (age1 > age2)
             {
-                difference *= -1;
-                foreach (int fraction in mAgeFractions)
+                //Person1 is older
+                for (int multiplier = 2; multiplier <= maxRatio; multiplier++)
                 {
-                    DateTime curDate = person1.BirthDate.AddTicks((long) (-1 * (double) fraction / (1 - fraction) * difference));
-                    CheckAndAddMilestone(ret, new Milestone(curDate, person1.Name, $"{fraction}x {person2.Name}'s age"), yearsToSearch, futureOnly);
+                    DateTime date = birth2.AddTicks((age1 - age2).Ticks / (multiplier - 1));
+                    CheckAndAddMilestone(ret, new Milestone(date, person1.Name, $"{multiplier}x {person2.Name}'s age"), yearsToSearch, futureOnly);
+                }
+            }
+            else
+            {
+                List<double> ratiosChecked = new List<double>();
+                for (int numerator = 1; numerator < maxRatio; numerator++)
+                {
+                    foreach(int denominator in denominators)
+                    {
+                        if (denominator <= numerator)
+                            continue;
+
+                        double ratio = (double) numerator / denominator;
+                        if (ratiosChecked.Contains(ratio))
+                            continue;
+
+                        ratiosChecked.Add(ratio);
+
+                        if (numerator == 1)
+                            continue;
+
+                        DateTime date = new DateTime((long) ((birth1.Ticks - ratio * birth2.Ticks) / (1 - ratio)));
+                        CheckAndAddMilestone(ret, new Milestone(date, person1.Name, $"{numerator}/{denominator} {person2.Name}'s age"), yearsToSearch, futureOnly);
+                    }
                 }
             }
 
@@ -192,7 +220,7 @@ namespace LifeDates
                 {
                     double age1 = (DateTime.Now - person1.BirthDate).TotalDays;
                     double age2 = (DateTime.Now - person2.BirthDate).TotalDays;
-                    line += $",{age1/age2:0.00}";
+                    line += $",{age1/age2:0.000}";
                 }
 
                 ret.Add(line);
@@ -217,6 +245,36 @@ namespace LifeDates
             }
 
             list.Add(milestone);
+        }
+
+        private static string PrintableNumber(int number)
+        {
+            if (number % 1000000000 == 0)
+            {
+                return $"{number / 1000000000}G";
+            }
+
+            if (number > 1000000000)
+            {
+                return $"{(double)number / 1000000000:0.0}G";
+            }
+
+            if (number % 1000000 == 0)
+            {
+                return $"{number/1000000}M";
+            }
+
+            if (number > 1000000)
+            {
+                return $"{(double)number / 1000000:0.0}M";
+            }
+
+            if (number % 1000 == 0)
+            {
+                return $"{number / 1000}k";
+            }
+
+            return $"{number}";
         }
     }
 }

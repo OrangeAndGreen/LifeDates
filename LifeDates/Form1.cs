@@ -2,36 +2,11 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
 
-/*
- * Fresh brainstorming:
- * Want this to output much more data in text files
- *
- * Keep the UI as is, just add a "Full Report" button
- *
- * Take info for several people (i.e. the family)
- *
- * For each person, individual milestones:
- *  Seconds: Every million (~278 days)
- *  Minutes: Every half-million (~347 days)
- *  Hours: Every 10k (~417 days)
- *  Days: Every 1k
- *  Weeks: Every 100
- *  Months: Every 50
- *
- * For each pair of people, comparison milestones:
- *  Nice fractions: x/y where 1 <= (x and y) <= 10
- *
- * For the Full Report:
- *  Add all the dates above and sort them in date order
- *  Output to a CSV file
- *
- */
-
 namespace LifeDates
 {
     public partial class Form1 : Form
     {
-        private bool mInitializing = false;
+        private bool mInitializing;
 
         public Form1()
         {
@@ -55,13 +30,13 @@ namespace LifeDates
             int lineNum = 0;
             foreach (Person person in people)
             {
-                if (lineNum < pickers.Length)
-                {
-                    pickers[lineNum].Value = person.BirthDate;
-                    names[lineNum].Text = person.Name;
+                if (lineNum >= pickers.Length)
+                    continue;
 
-                    lineNum++;
-                }
+                pickers[lineNum].Value = person.BirthDate;
+                names[lineNum].Text = person.Name;
+
+                lineNum++;
             }
 
             mInitializing = false;
@@ -88,13 +63,6 @@ namespace LifeDates
                 statsText.Text += Constants.Newline;
             }
 
-            //Milestones
-            statsText.Text += Constants.Newline + "Milestones:" + Constants.Newline;
-            foreach (Milestone milestone in MilestoneGenerator.GenerateMilestones(people, Constants.YearsToSearch, futureOnly))
-            {
-                statsText.Text += $"{milestone.Date.ToShortDateString()}: {milestone.Person}: {milestone.Description}{Constants.Newline}";
-            }
-
             //Age matrix
             statsText.Text += Constants.Newline + "Age Matrix:" + Constants.Newline;
             foreach (string line in MilestoneGenerator.GenerateAgeMatrix(people))
@@ -102,6 +70,12 @@ namespace LifeDates
                 statsText.Text += line + Constants.Newline;
             }
 
+            //Milestones
+            statsText.Text += Constants.Newline + "Milestones:" + Constants.Newline;
+            foreach (Milestone milestone in MilestoneGenerator.GenerateMilestones(people, Constants.YearsToSearch, futureOnly))
+            {
+                statsText.Text += $"{milestone.Date.ToShortDateString()},{milestone.Person} {milestone.Description}{Constants.Newline}";
+            }
         }
 
         private List<Person> GetPeople()
